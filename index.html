@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juego de Escala Musical - p5.js</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0b0b10;
+      font-family: sans-serif;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+</head>
+<body>
+  <script>
+    let mic, fft;
+    // Escala musical ordenada de menor a mayor frecuencia
+    let escalaNotas = ["Do", "Re", "Mi", "Fa", "Sol", "La", "Si"];
+    let frecuenciasNotas = {
+      "Do": 261.63,
+      "Re": 293.66,
+      "Mi": 329.63,
+      "Fa": 349.23,
+      "Sol": 392.00,
+      "La": 440.00,
+      "Si": 493.88
+    };
+
+    let indiceNotaActual = 0;
+    let notaObjetivo = "";
+    let estadoJuego = "INICIO"; // INICIO, JUGANDO, SALTO, EXITO, CAIDA, GAME_OVER
+    let puntaje = 0;
+    
+    // Posiciones del personaje
+    let jugadorX = 150;
+    let jugadorY = 0;
+    let sueloY = 0;
+    let velocidadY = 0;
+    let gravedad = 0.6;
+    
+    // Destino del salto
+    let plataformaX = 500;
+    let plataformaY = 0;
+    let origenX = 150;
+    let origenY = 0;
+    let progresoSalto = 0;
+
+    let frecuenciaDetectada = 0;
+    let volumenActual = 0;
+    let mensajeFeedback = "Canta o tararea para empezar";
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      sueloY = height - 150;
+      jugadorY = sueloY;
+      plataformaY = sueloY;
+
+      mic = new p5.AudioIn();
+      mic.start();
+      
+      // FFT con mayor resolución para captar mejor el tono
+      fft = new p5.FFT(0.8, 2048);
+      fft.setInput(mic);
+    }
+
+    function draw() {
+      background(15, 15, 25);
+
+      // 1. Procesar Audio con mayor sensibilidad
+      volumenActual = mic.getLevel();
+      let spectrum = fft.analyze();
+      let centroid = fft.getCentroid();
+      
+      // Umbral de volumen más sensible (0.005) para que "pesque" la voz fácilmente
+      if (!isNaN(centroid) && centroid > 70 && centroid < 1200 && volumenActual > 0.005) {
+        frecuenciaDetectada = centroid;
+      } else if (volumenActual <= 0.005) {
+        frecuenciaDetectada = 0;
+      }
+
+      // 2. Dibujar Escenario
+      dibujarEscenario();
+
+      // 3. Máquina de Estados
+      if (estadoJuego === "INICIO") {
+        pantallaInicio();
+      } else if (estadoJuego === "JUGANDO") {
+        logicaJuego();
+        dibujarJugador();
+      } else if (estadoJuego === "SALTO") {
+        animarSalto();
+        dibujarJugador();
+      } else if (estadoJuego === "CAIDA") {
+        animarCaida();
+        dibujarJugador();
+      } else if (estadoJuego === "GAME_OVER") {
+        pantallaGameOver();
+      }
+
+      // 4. Panel HUD
+      dibujarHUD();
+    }
+
+    function dibujarEscenario() {
+      // Suelo inicial
+      fill(40, 40, 60);
+      noStroke();
+      rect(0, sueloY + 20, width, height - (sueloY + 20));
+
+      // Bloque de destino
+      stroke(100, 150, 255);
+      strokeWeight(3);
+      fill(30, 50, 90);
+      rect(plataformaX - 50, plataformaY, 100, 20, 5);
+      
+      noStroke();
+      fill(255);
+      textSize(16);
+      textAlign(CENTER, CENTER);
+      text("Meta: " + notaObjetivo, plataformaX, plataformaY - 20);
+    }
+
+    function dibujarJugador() {
+      fill(0, 255, 180);
+      noStroke();
+      ellipse(jugadorX, jugadorY - 15, 30, 30);
+      
+      fill(0);
+      ellipse(jugadorX + 4, jugadorY - 18, 5, 5);
+    }
+
+    function pantallaInicio() {
+      fill(255);
+      textSize(28);
+      textAlign(CENTER, CENTER);
+      text("Escala Musical: ¡Salta al Vacío!", width / 2, height / 2 - 60);
+      
+      textSize(16);
+      fill(180, 180, 200);
+      text("El juego te pedirá las notas en orden de escala (Do, Re, Mi...). Entónalas para avanzar de plataforma.", width / 2, height / 2 - 10);
+
+      fill(0, 200, 100);
+      rectMode(CENTER);
+      rect(width / 2, height / 2 + 60, 220, 50, 10);
+      fill(255);
+      textSize(18);
+      text("COMENZAR", width / 2, height / 2 + 60);
+      rectMode(CORNER);
+    }
+
+    function logicaJuego() {
+      if (notaObjetivo !== "") {
+        let freqIdeal = frecuenciasNotas[notaObjetivo];
+        // Margen de tolerancia realista (8% de margen para acertar con facilidad)
+        let margenTolerancia = freqIdeal * 0.08; 
+
+        if (frecuenciaDetectada > 0 && Math.abs(frecuenciaDetectada - freqIdeal) <= margenTolerancia) {
+          mensajeFeedback = "¡BIEN! Nota calzada: " + notaObjetivo;
+          origenX = jugadorX;
+          origenY = jugadorY;
+          progresoSalto = 0;
+          estadoJuego = "SALTO";
+        }
+      }
+    }
+
+    function animarSalto() {
+      progresoSalto += 0.035; 
+      if (progresoSalto >= 1) {
+        progresoSalto = 1;
+        jugadorX = plataformaX;
+        jugadorY = plataformaY;
+        puntaje++;
+        
+        origenX = plataformaX;
+        origenY = plataformaY;
+        plataformaX += 200;
+        if (plataformaX > width - 100) plataformaX = 300; 
+        
+        avanzarEscala();
+        estadoJuego = "JUGANDO";
+        return;
+      }
+
+      jugadorX = lerp(origenX, plataformaX, progresoSalto);
+      let alturaArc = -100;
+      jugadorY = lerp(origenY, plataformaY, progresoSalto) + sin(progresoSalto * PI) * alturaArc;
+    }
+
+    function animarCaida() {
+      velocidadY += gravedad;
+      jugadorY += velocidadY;
+
+      if (jugadorY > height + 50) {
+        estadoJuego = "GAME_OVER";
+      }
+    }
+
+    function avanzarEscala() {
+      // Avanza en orden por la escala musical. Si llega al final, se mantiene o reinicia con notas más altas.
+      indiceNotaActual = (indiceNotaActual + 1) % escalaNotas.length;
+      notaObjetivo = escalaNotas[indiceNotaActual];
+    }
+
+    function pantallaGameOver() {
+      fill(255, 50, 50);
+      textSize(36);
+      textAlign(CENTER, CENTER);
+      text("¡CAÍSTE AL VACÍO!", width / 2, height / 2 - 40);
+
+      fill(255);
+      textSize(20);
+      text("Puntaje en la escala: " + puntaje, width / 2, height / 2 + 10);
+
+      fill(200, 50, 50);
+      rectMode(CENTER);
+      rect(width / 2, height / 2 + 70, 200, 45, 10);
+      fill(255);
+      textSize(16);
+      text("REINTENTAR", width / 2, height / 2 + 70);
+      rectMode(CORNER);
+    }
+
+    function dibujarHUD() {
+      fill(20, 20, 30, 200);
+      noStroke();
+      rect(0, 0, width, 70);
+
+      fill(255);
+      textSize(16);
+      textAlign(LEFT, CENTER);
+      text("Puntaje: " + puntaje, 30, 35);
+
+      if (estadoJuego === "JUGANDO" || estadoJuego === "SALTO") {
+        textSize(20);
+        fill(255, 200, 0);
+        textAlign(CENTER, CENTER);
+        text("Siguiente nota en la escala: " + notaObjetivo, width / 2, 25);
+        
+        textSize(14);
+        fill(150, 200, 255);
+        text(mensajeFeedback, width / 2, 50);
+      }
+
+      // Visualizador rápido de tu voz para saber si capta el micrófono
+      textAlign(RIGHT, CENTER);
+      textSize(14);
+      fill(volumenActual > 0.005 ? color(0, 255, 150) : color(200));
+      let freqTxt = frecuenciaDetectada > 0 ? nf(frecuenciaDetectada, 0, 1) + " Hz" : "Escuchando...";
+      text("Tu voz: " + freqTxt, width - 30, 35);
+    }
+
+    function mousePressed() {
+      userStartAudio();
+
+      if (estadoJuego === "INICIO") {
+        if (mouseX > width / 2 - 110 && mouseX < width / 2 + 110 && mouseY > height / 2 + 35 && mouseY < height / 2 + 85) {
+          indiceNotaActual = 0;
+          notaObjetivo = escalaNotas[indiceNotaActual];
+          jugadorX = 150;
+          jugadorY = sueloY;
+          origenX = 150;
+          origenY = sueloY;
+          plataformaX = 400;
+          plataformaY = sueloY;
+          puntaje = 0;
+          estadoJuego = "JUGANDO";
+        }
+      } else if (estadoJuego === "GAME_OVER") {
+        if (mouseX > width / 2 - 100 && mouseX < width / 2 + 100 && mouseY > height / 2 + 47 && mouseY < height / 2 + 93) {
+          indiceNotaActual = 0;
+          notaObjetivo = escalaNotas[indiceNotaActual];
+          jugadorX = 150;
+          jugadorY = sueloY;
+          origenX = 150;
+          origenY = sueloY;
+          plataformaX = 400;
+          plataformaY = sueloY;
+          puntaje = 0;
+          velocidadY = 0;
+          estadoJuego = "JUGANDO";
+        }
+      }
+    }
+
+    function keyPressed() {
+      // Truco de prueba: presiona Espacio si deseas simular una caída a propósito
+      if (key === ' ' && estadoJuego === "JUGANDO") {
+        velocidadY = -2;
+        estadoJuego = "CAIDA";
+        mensajeFeedback = "¡Caída simulada!";
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      sueloY = height - 150;
+      if (estadoJuego === "INICIO") {
+        jugadorY = sueloY;
+        plataformaY = sueloY;
+      }
+    }
+  </script>
+</body>
+</html>
