@@ -3,239 +3,188 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonificador RGB: Proyecto Nebulosa</title>
+  <title>Sonificación de Nebulosa</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; padding: 25px; background: #0b0b10; color: #fff; }
-    .container { max-width: 750px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
-    h2 { margin: 0 0 10px 0; font-size: 1.6rem; font-weight: 700; }
-    
-    .image-preview-container {
-      position: relative;
-      width: 100%;
-      height: 450px;
-      overflow: hidden;
-      border-radius: 8px;
-      border: 1px solid #333;
-      background: #000;
+    body {
+      background-color: #0d0d11;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, sans-serif;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
-      cursor: pointer;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
     }
-    #displayImage {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
+
+    h1 {
+      margin-bottom: 8px;
+      font-weight: 500;
+      letter-spacing: 1px;
+    }
+
+    p {
+      color: #a0a0b0;
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+
+    .container {
+      position: relative;
+      max-width: 90vw;
+      max-height: 75vh;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Garantiza máxima fidelidad visual y evita reescalados que degraden la calidad */
+    #imageCanvas {
       display: block;
+      width: 100%;
+      height: auto;
+      max-height: 75vh;
+      object-fit: contain;
+      cursor: pointer;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
-    #pointer {
-      position: absolute;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #00ffcc;
-      border-radius: 50%;
-      box-shadow: 0 0 12px #00ffcc, inset 0 0 6px #00ffcc;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      display: none;
+    .status {
+      margin-top: 15px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #64ffda;
     }
-    
-    #hiddenCanvas { display: none; }
-
-    .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    button { padding: 12px 24px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; }
-    button:hover:not(:disabled) { background: #1d4ed8; }
-    button:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; }
-    
-    select { padding: 11px; background: #1f2937; color: white; border: 1px solid #374151; border-radius: 6px; font-weight: 600; cursor: pointer; }
-
-    #status { font-family: monospace; background: #111827; padding: 14px; border-radius: 6px; border: 1px solid #1f2937; color: #10b981; font-size: 0.9rem; }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h2>Sonificador RGB: Proyecto Nebulosa</h2>
-  
-  <div class="image-preview-container" id="stage">
-    <img id="displayImage" alt="Nebulosa HD">
-    <div id="pointer"></div>
+  <h1>Sonificación de Nebulosa</h1>
+  <p>Pasa el cursor o haz clic en la imagen para reproducir la nota asignada.</p>
+
+  <div class="container">
+    <canvas id="imageCanvas"></canvas>
   </div>
-  
-  <canvas id="hiddenCanvas"></canvas>
 
-  <div class="controls">
-    <button id="playBtn">Iniciar Sonificación</button>
-    <button id="stopBtn" disabled>Detener</button>
-    
-    <label for="scaleSelect">Escala:</label>
-    <select id="scaleSelect">
-      <option value="pentatonic">Pentatónica (Armónica/Espacial)</option>
-      <option value="major">Escala Mayor</option>
-      <option value="minor">Escala Menor</option>
-    </select>
-  </div>
-  
-  <div id="status">Haz clic en la imagen para tocar una nota o presiona "Iniciar".</div>
-</div>
+  <div class="status" id="statusText">Cargando imagen...</div>
 
-<script>
-  const displayImage = document.getElementById('displayImage');
-  const hiddenCanvas = document.getElementById('hiddenCanvas');
-  const pointer = document.getElementById('pointer');
-  const ctx = hiddenCanvas.getContext('2d');
-  const playBtn = document.getElementById('playBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const status = document.getElementById('status');
-  const scaleSelect = document.getElementById('scaleSelect');
-  const stage = document.getElementById('stage');
+  <script>
+    const canvas = document.getElementById('imageCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const statusText = document.getElementById('statusText');
 
-  let audioCtx = null;
-  let isPlaying = false;
-  let timerId = null;
+    let audioCtx = null;
+    let img = new Image();
+    img.src = 'Nebulosa.webp'; // Asegúrate de que el archivo esté en la misma carpeta
 
-  // Tu imagen de la Nebulosa incrustada en calidad nativa
-  displayImage.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='500'><defs><radialGradient id='g1' cx='70%' cy='20%' r='80%'><stop offset='0%' stop-color='%23ff1493'/><stop offset='35%' stop-color='%2300ffff'/><stop offset='70%' stop-color='%23ff8c00'/><stop offset='100%' stop-color='%230a051b'/></radialGradient><radialGradient id='g2' cx='20%' cy='80%' r='70%'><stop offset='0%' stop-color='%23ff0055'/><stop offset='50%' stop-color='%238a2be2'/><stop offset='100%' stop-color='%23000000'/></radialGradient></defs><rect width='100%' height='100%' fill='%23050210'/><rect width='100%' height='100%' fill='url(%23g1)' opacity='0.85'/><circle cx='200' cy='300' r='250' fill='url(%23g2)' opacity='0.75'/></svg>";
+    // Escala pentatónica para que cualquier píxel suene armónico como un piano
+    const pianoNotes = [
+      130.81, 146.83, 164.81, 196.00, 220.00, // C3 - A3
+      261.63, 293.66, 329.63, 392.00, 440.00, // C4 - A4
+      523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
+      1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // C6 - A6
+    ];
 
-  // Escalas Musicales Seleccionables
-  const scales = {
-    pentatonic: [
-      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 164.81, name: "Mi3" }, { freq: 196.00, name: "Sol3" }, { freq: 220.00, name: "La3" },
-      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 329.63, name: "Mi4" }, { freq: 392.00, name: "Sol4" }, { freq: 440.00, name: "La4" },
-      { freq: 523.25, name: "Do5" }, { freq: 587.33, name: "Re5" }, { freq: 659.25, name: "Mi5" }, { freq: 783.99, name: "Sol5" }, { freq: 880.00, name: "La5" }
-    ],
-    major: [
-      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 164.81, name: "Mi3" }, { freq: 174.61, name: "Fa3" }, { freq: 196.00, name: "Sol3" }, { freq: 220.00, name: "La3" }, { freq: 246.94, name: "Si3" },
-      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 329.63, name: "Mi4" }, { freq: 349.23, name: "Fa4" }, { freq: 392.00, name: "Sol4" }, { freq: 440.00, name: "La4" }, { freq: 493.88, name: "Si4" },
-      { freq: 523.25, name: "Do5" }
-    ],
-    minor: [
-      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 155.56, name: "Mib3" }, { freq: 174.61, name: "Fa3" }, { freq: 196.00, name: "Sol3" }, { freq: 207.65, name: "Lab3" }, { freq: 233.08, name: "Sib3" },
-      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 311.13, name: "Mib4" }, { freq: 349.23, name: "Fa4" }, { freq: 392.00, name: "Sol4" }, { freq: 415.30, name: "Lab4" }, { freq: 466.16, name: "Sib4" },
-      { freq: 523.25, name: "Do5" }
-    ]
-  };
+    img.onload = () => {
+      // Mantiene la calidad y dimensiones exactas de la imagen original
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      statusText.textContent = 'Mueve el cursor sobre la imagen para sonificar.';
+    };
 
-  displayImage.addEventListener('load', () => {
-    hiddenCanvas.width = 100;
-    hiddenCanvas.height = 100;
-    ctx.drawImage(displayImage, 0, 0, 100, 100);
-  });
+    img.onerror = () => {
+      statusText.textContent = 'Error: Coloca la imagen Nebulosa.webp en el mismo directorio.';
+    };
 
-  function initAudio() {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Inicializar AudioContext tras interacción del usuario
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
     }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+
+    // Algoritmo de mapeo RGB -> Frecuencia, Volumen y Efecto (Tremolo)
+    function playToneFromRGB(r, g, b) {
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+
+      // 1. Canal R (Rojo) -> Mapeo a nota/frecuencia de piano
+      const noteIndex = Math.floor((r / 255) * (pianoNotes.length - 1));
+      const frequency = pianoNotes[noteIndex];
+
+      // 2. Canal G (Verde) -> Mapeo a volumen (0 a 0.5 para no saturar)
+      const volume = (g / 255) * 0.5;
+
+      // 3. Canal B (Azul) -> Mapeo a efecto (Frecuencia de Trémolo / Modulación)
+      const effectSpeed = (b / 255) * 15; // De 0Hz a 15Hz
+
+      if (volume <= 0.01) return; // Omitir píxeles casi negros
+
+      // Creación del sintetizador de piano (Oscilador + Armónicos)
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      // Forma de onda tipo piano (Mezcla de corte de onda suave)
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(frequency, now);
+
+      // Efecto (Canal B): Modulación por trémolo mediante un LFO
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+      lfo.frequency.setValueAtTime(effectSpeed, now);
+      lfoGain.gain.setValueAtTime(volume * 0.3, now); // Intensidad del efecto
+      lfo.connect(lfoGain.gain);
+
+      // Envolvente de volumen tipo Piano (Attack rápido, Decay gradual)
+      gainNode.gain.setValueAtTime(0.001, now);
+      gainNode.gain.linearRampToValueAtTime(volume, now + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+      // Conexiones de audio
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      lfo.start(now);
+      osc.start(now);
+
+      // Detener y limpiar nodos
+      osc.stop(now + 1.2);
+      lfo.stop(now + 1.2);
+
+      statusText.textContent = `RGB(${r}, ${g}, ${b}) | Freq: ${Math.round(frequency)}Hz | Vol: ${Math.round(volume * 100)}% | FX Rate: ${effectSpeed.toFixed(1)}Hz`;
     }
-  }
 
-  function playTone(freq, volume) {
-    initAudio();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    // Captura de coordenadas precisas
+    function handlePointer(e) {
+      initAudio();
 
-    osc.type = 'sine'; // Tono puro y claro
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
 
-    const now = audioCtx.currentTime;
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(volume, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      const x = Math.floor((e.clientX - rect.left) * scaleX);
+      const y = Math.floor((e.clientY - rect.top) * scaleY);
 
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+      if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+        const pixelData = ctx.getImageData(x, y, 1, 1).data;
+        playToneFromRGB(pixelData[0], pixelData[1], pixelData[2]);
+      }
+    }
 
-    osc.start(now);
-    osc.stop(now + 0.25);
-  }
+    let lastExecution = 0;
+    canvas.addEventListener('mousemove', (e) => {
+      // Throttle para limitar la generación de notas y evitar saturación de audio
+      if (Date.now() - lastExecution > 100) {
+        handlePointer(e);
+        lastExecution = Date.now();
+      }
+    });
 
-  function getPixelData(x, y) {
-    const rect = displayImage.getBoundingClientRect();
-    const canvasX = Math.floor(((x - rect.left) / rect.width) * hiddenCanvas.width);
-    const canvasY = Math.floor(((y - rect.top) / rect.height) * hiddenCanvas.height);
-    
-    const pixel = ctx.getImageData(
-      Math.max(0, Math.min(hiddenCanvas.width - 1, canvasX)), 
-      Math.max(0, Math.min(hiddenCanvas.height - 1, canvasY)), 
-      1, 1
-    ).data;
-
-    return { r: pixel[0], g: pixel[1], b: pixel[2] };
-  }
-
-  function triggerNote(r, g, b, xPos, yPos) {
-    const currentScale = scales[scaleSelect.value];
-    const noteIdx = Math.floor((r / 255) * (currentScale.length - 1));
-    const note = currentScale[noteIdx];
-    const volume = Math.max(0.05, (g / 255) * 0.3);
-
-    playTone(note.freq, volume);
-
-    status.textContent = `Posición (${xPos}, ${yPos}) | R:${r} -> Nota: ${note.name} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
-  }
-
-  // Tocar nota manual al hacer clic en la imagen
-  stage.addEventListener('click', (e) => {
-    if (isPlaying) return;
-    const { r, g, b } = getPixelData(e.clientX, e.clientY);
-    const rect = stage.getBoundingClientRect();
-    
-    pointer.style.display = 'block';
-    pointer.style.left = `${e.clientX - rect.left}px`;
-    pointer.style.top = `${e.clientY - rect.top}px`;
-
-    triggerNote(r, g, b, Math.round(e.clientX - rect.left), Math.round(e.clientY - rect.top));
-  });
-
-  playBtn.addEventListener('click', () => {
-    initAudio();
-    isPlaying = true;
-    playBtn.disabled = true;
-    stopBtn.disabled = false;
-    pointer.style.display = 'block';
-
-    let x = 0, y = 0;
-    const w = hiddenCanvas.width;
-    const h = hiddenCanvas.height;
-    const imgData = ctx.getImageData(0, 0, w, h).data;
-
-    timerId = setInterval(() => {
-      if (!isPlaying) return;
-
-      const idx = (y * w + x) * 4;
-      const r = imgData[idx];
-      const g = imgData[idx + 1];
-      const b = imgData[idx + 2];
-
-      const rect = displayImage.getBoundingClientRect();
-      const stageRect = stage.getBoundingClientRect();
-      const px = (x / w) * rect.width + (rect.left - stageRect.left);
-      const py = (y / h) * rect.height + (rect.top - stageRect.top);
-
-      pointer.style.left = `${px}px`;
-      pointer.style.top = `${py}px`;
-
-      triggerNote(r, g, b, x, y);
-
-      x += 2;
-      if (x >= w) { x = 0; y += 2; }
-      if (y >= h) { stopAudio(); }
-    }, 90);
-  });
-
-  function stopAudio() {
-    isPlaying = false;
-    if (timerId) clearInterval(timerId);
-    playBtn.disabled = false;
-    stopBtn.disabled = true;
-    status.textContent = 'Sonificación detenida. Haz clic en la imagen para probar notas puntuales.';
-  }
-
-  stopBtn.addEventListener('click', stopAudio);
-</script>
-
+    canvas.addEventListener('click', handlePointer);
+  </script>
 </body>
 </html>
