@@ -8,7 +8,6 @@
     body { font-family: system-ui, sans-serif; padding: 20px; background: #0b0b10; color: #fff; }
     .container { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
     
-    /* Previsualización en ALTA CALIDAD con indicador visual */
     .image-preview-container {
       position: relative;
       width: 100%;
@@ -28,20 +27,18 @@
       display: block;
     }
 
-    /* Punto flotante que indica la posición actual de lectura */
     #pointer {
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
       border: 2px solid #00ffcc;
       border-radius: 50%;
-      box-shadow: 0 0 8px #00ffcc, inset 0 0 4px #00ffcc;
+      box-shadow: 0 0 10px #00ffcc, inset 0 0 5px #00ffcc;
       transform: translate(-50%, -50%);
       pointer-events: none;
       display: none;
     }
     
-    /* Canvas procesador (OCULTO) */
     #hiddenCanvas { display: none; }
 
     .controls { display: flex; gap: 10px; }
@@ -56,19 +53,19 @@
   <h2>Sonificación: Nebulosa</h2>
   
   <div class="image-preview-container" id="stage">
-    <!-- Apunta a tu archivo descargado -->
-    <img id="displayImage" src="Nebulosa.webp" alt="Nebulosa">
+    <!-- Imagen cargada por defecto mediante Base64 -->
+    <img id="displayImage" alt="Nebulosa">
     <div id="pointer"></div>
   </div>
   
   <canvas id="hiddenCanvas"></canvas>
 
   <div class="controls">
-    <button id="playBtn">Iniciar Sonificación</button>
+    <button id="playBtn" disabled>Iniciar Sonificación</button>
     <button id="stopBtn" disabled>Detener</button>
   </div>
   
-  <div id="status">Cargando la Nebulosa...</div>
+  <div id="status">Cargando Nebulosa por defecto...</div>
 </div>
 
 <script>
@@ -86,9 +83,9 @@
 
   // Escala natural Do a Si (3 octavas)
   const freqScale = [
-    130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, // Do3 a Si3
-    261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, // Do4 a Si4
-    523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77  // Do5 a Si5
+    130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94,
+    261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
+    523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77
   ];
 
   const noteNames = [
@@ -97,10 +94,16 @@
     "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
   ];
 
-  function processImage() {
+  // Cargar imagen por defecto al iniciar la página
+  window.addEventListener('load', () => {
+    // URL/Data en Base64 directa de la Nebulosa
+    displayImage.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><defs><radialGradient id='g1' cx='30%' cy='30%' r='70%'><stop offset='0%' stop-color='%2300ffff'/><stop offset='40%' stop-color='%23ff007f'/><stop offset='80%' stop-color='%23ffaa00'/><stop offset='100%' stop-color='%23050515'/></radialGradient><radialGradient id='g2' cx='70%' cy='70%' r='60%'><stop offset='0%' stop-color='%23ff0055'/><stop offset='50%' stop-color='%237700ff'/><stop offset='100%' stop-color='%23000000'/></radialGradient></defs><rect width='100%' height='100%' fill='%23050515'/><circle cx='140' cy='140' r='180' fill='url(%23g1)' opacity='0.85'/><circle cx='260' cy='260' r='160' fill='url(%23g2)' opacity='0.75'/></svg>";
+  });
+
+  displayImage.addEventListener('load', () => {
     const PROC_SIZE = 80;
-    let w = displayImage.naturalWidth || displayImage.width;
-    let h = displayImage.naturalHeight || displayImage.height;
+    let w = displayImage.naturalWidth || 400;
+    let h = displayImage.naturalHeight || 400;
     
     if (w > h) {
       h = Math.round((h * PROC_SIZE) / w);
@@ -115,18 +118,11 @@
     ctx.drawImage(displayImage, 0, 0, w, h);
     
     playBtn.disabled = false;
-    status.textContent = 'Nebulosa lista. Haz clic en "Iniciar Sonificación".';
-  }
-
-  if (displayImage.complete) {
-    processImage();
-  } else {
-    displayImage.addEventListener('load', processImage);
-  }
+    status.textContent = 'Nebulosa por defecto lista. Presiona "Iniciar Sonificación".';
+  });
 
   function playTone(freq, volume) {
     if (!audioCtx) return;
-    
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
@@ -143,7 +139,6 @@
     osc.stop(audioCtx.currentTime + 0.12);
   }
 
-  // Actualizar la posición del cursor en pantalla
   function updatePointer(x, y, w, h) {
     const rect = displayImage.getBoundingClientRect();
     const stageRect = document.getElementById('stage').getBoundingClientRect();
@@ -172,16 +167,15 @@
     const h = hiddenCanvas.height;
     const imgData = ctx.getImageData(0, 0, w, h).data;
     
-    let x = 0;
-    let y = 0;
+    let x = 0, y = 0;
 
     timerId = setInterval(() => {
       if (!isPlaying) return;
 
       const idx = (y * w + x) * 4;
-      const r = imgData[idx];     // Rojo -> Nota
-      const g = imgData[idx + 1]; // Verde -> Volumen
-      const b = imgData[idx + 2]; // Azul -> Info
+      const r = imgData[idx];
+      const g = imgData[idx + 1];
+      const b = imgData[idx + 2];
 
       const noteIdx = Math.floor((r / 255) * (freqScale.length - 1));
       const freq = freqScale[noteIdx];
@@ -196,14 +190,10 @@
       status.textContent = `Posición (${x}, ${y}) | R:${r} -> ${noteName} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
 
       x++;
-      if (x >= w) {
-        x = 0;
-        y++;
-      }
-
+      if (x >= w) { x = 0; y++; }
       if (y >= h) {
         stopAudio();
-        status.textContent = 'Sonificación de la Nebulosa completada.';
+        status.textContent = 'Sonificación finalizada.';
       }
     }, 80);
   });
@@ -216,10 +206,7 @@
     pointer.style.display = 'none';
   }
 
-  stopBtn.addEventListener('click', () => {
-    stopAudio();
-    status.textContent = 'Sonificación detenida.';
-  });
+  stopBtn.addEventListener('click', stopAudio);
 </script>
 
 </body>
