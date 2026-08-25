@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonificador de Imagen HD - Nebulosa</title>
+  <title>Sonificador de la Nebulosa HD</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; background: #121212; color: #fff; }
+    body { font-family: system-ui, sans-serif; padding: 20px; background: #0b0b10; color: #fff; }
     .container { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
     
-    /* Previsualización en ALTA CALIDAD */
+    /* Previsualización en ALTA CALIDAD con indicador visual */
     .image-preview-container {
       position: relative;
       width: 100%;
@@ -27,6 +27,19 @@
       object-fit: contain;
       display: block;
     }
+
+    /* Punto flotante que indica la posición actual de lectura */
+    #pointer {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #00ffcc;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #00ffcc, inset 0 0 4px #00ffcc;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: none;
+    }
     
     /* Canvas procesador (OCULTO) */
     #hiddenCanvas { display: none; }
@@ -34,20 +47,20 @@
     .controls { display: flex; gap: 10px; }
     button { padding: 12px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
     button:disabled { background: #444; cursor: not-allowed; }
-    #status { font-family: monospace; background: #1a1a1a; padding: 12px; border-radius: 4px; border: 1px solid #333; color: #00ffcc; }
+    #status { font-family: monospace; background: #161622; padding: 12px; border-radius: 4px; border: 1px solid #333; color: #00ffcc; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Sonificador RGB: Proyecto Nebulosa</h2>
+  <h2>Sonificación: Nebulosa</h2>
   
-  <div class="image-preview-container">
-    <!-- Carga directa de tu imagen local en alta resolución -->
-    <img id="displayImage" src="nebulosa.jpg" alt="Imagen Nebulosa">
+  <div class="image-preview-container" id="stage">
+    <!-- Apunta a tu archivo descargado -->
+    <img id="displayImage" src="Nebulosa.webp" alt="Nebulosa">
+    <div id="pointer"></div>
   </div>
   
-  <!-- Canvas invisible para procesamiento en segundo plano -->
   <canvas id="hiddenCanvas"></canvas>
 
   <div class="controls">
@@ -55,12 +68,13 @@
     <button id="stopBtn" disabled>Detener</button>
   </div>
   
-  <div id="status">Cargando imagen de la nebulosa...</div>
+  <div id="status">Cargando la Nebulosa...</div>
 </div>
 
 <script>
   const displayImage = document.getElementById('displayImage');
   const hiddenCanvas = document.getElementById('hiddenCanvas');
+  const pointer = document.getElementById('pointer');
   const ctx = hiddenCanvas.getContext('2d');
   const playBtn = document.getElementById('playBtn');
   const stopBtn = document.getElementById('stopBtn');
@@ -70,7 +84,7 @@
   let isPlaying = false;
   let timerId = null;
 
-  // Escala natural Do a Si (3 octavas) en Frecuencias (Hz)
+  // Escala natural Do a Si (3 octavas)
   const freqScale = [
     130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, // Do3 a Si3
     261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, // Do4 a Si4
@@ -83,7 +97,6 @@
     "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
   ];
 
-  // Función para procesar la imagen al cargarla
   function processImage() {
     const PROC_SIZE = 80;
     let w = displayImage.naturalWidth || displayImage.width;
@@ -102,17 +115,15 @@
     ctx.drawImage(displayImage, 0, 0, w, h);
     
     playBtn.disabled = false;
-    status.textContent = 'Imagen de la nebulosa lista. Presiona "Iniciar Sonificación".';
+    status.textContent = 'Nebulosa lista. Haz clic en "Iniciar Sonificación".';
   }
 
-  // Detecta si la imagen ya cargó o espera al evento load
   if (displayImage.complete) {
     processImage();
   } else {
     displayImage.addEventListener('load', processImage);
   }
 
-  // Generador de tono puro mediante Web Audio API
   function playTone(freq, volume) {
     if (!audioCtx) return;
     
@@ -132,6 +143,18 @@
     osc.stop(audioCtx.currentTime + 0.12);
   }
 
+  // Actualizar la posición del cursor en pantalla
+  function updatePointer(x, y, w, h) {
+    const rect = displayImage.getBoundingClientRect();
+    const stageRect = document.getElementById('stage').getBoundingClientRect();
+
+    const px = (x / w) * rect.width + (rect.left - stageRect.left);
+    const py = (y / h) * rect.height + (rect.top - stageRect.top);
+
+    pointer.style.left = `${px}px`;
+    pointer.style.top = `${py}px`;
+  }
+
   playBtn.addEventListener('click', () => {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -143,6 +166,7 @@
     isPlaying = true;
     playBtn.disabled = true;
     stopBtn.disabled = false;
+    pointer.style.display = 'block';
 
     const w = hiddenCanvas.width;
     const h = hiddenCanvas.height;
@@ -155,23 +179,21 @@
       if (!isPlaying) return;
 
       const idx = (y * w + x) * 4;
-      const r = imgData[idx];     // Rojo -> Frecuencia / Nota
+      const r = imgData[idx];     // Rojo -> Nota
       const g = imgData[idx + 1]; // Verde -> Volumen
-      const b = imgData[idx + 2]; // Azul -> (Canal B)
+      const b = imgData[idx + 2]; // Azul -> Info
 
-      // Mapeo Rojo a notas (Do-Si)
       const noteIdx = Math.floor((r / 255) * (freqScale.length - 1));
       const freq = freqScale[noteIdx];
       const noteName = noteNames[noteIdx];
-
-      // Mapeo Verde a volumen
       const volume = (g / 255) * 0.3;
 
       if (volume > 0.005) {
         playTone(freq, volume);
       }
 
-      status.textContent = `Píxel (${x}, ${y}) | R:${r} -> ${noteName} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
+      updatePointer(x, y, w, h);
+      status.textContent = `Posición (${x}, ${y}) | R:${r} -> ${noteName} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
 
       x++;
       if (x >= w) {
@@ -181,7 +203,7 @@
 
       if (y >= h) {
         stopAudio();
-        status.textContent = 'Sonificación de la nebulosa finalizada.';
+        status.textContent = 'Sonificación de la Nebulosa completada.';
       }
     }, 80);
   });
@@ -191,11 +213,12 @@
     if (timerId) clearInterval(timerId);
     playBtn.disabled = false;
     stopBtn.disabled = true;
+    pointer.style.display = 'none';
   }
 
   stopBtn.addEventListener('click', () => {
     stopAudio();
-    status.textContent = 'Sonificación pausada.';
+    status.textContent = 'Sonificación detenida.';
   });
 </script>
 
