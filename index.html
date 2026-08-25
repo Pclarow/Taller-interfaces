@@ -53,7 +53,6 @@
   <h2>Sonificación: Nebulosa</h2>
   
   <div class="image-preview-container" id="stage">
-    <!-- Imagen cargada por defecto mediante Base64 -->
     <img id="displayImage" alt="Nebulosa">
     <div id="pointer"></div>
   </div>
@@ -81,7 +80,7 @@
   let isPlaying = false;
   let timerId = null;
 
-  // Escala natural Do a Si (3 octavas)
+  // Escala natural Do a Si (3 octavas) en Hz
   const freqScale = [
     130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94,
     261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
@@ -94,11 +93,47 @@
     "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
   ];
 
-  // Cargar imagen por defecto al iniciar la página
-  window.addEventListener('load', () => {
-    // URL/Data en Base64 directa de la Nebulosa
-    displayImage.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><defs><radialGradient id='g1' cx='30%' cy='30%' r='70%'><stop offset='0%' stop-color='%2300ffff'/><stop offset='40%' stop-color='%23ff007f'/><stop offset='80%' stop-color='%23ffaa00'/><stop offset='100%' stop-color='%23050515'/></radialGradient><radialGradient id='g2' cx='70%' cy='70%' r='60%'><stop offset='0%' stop-color='%23ff0055'/><stop offset='50%' stop-color='%237700ff'/><stop offset='100%' stop-color='%23000000'/></radialGradient></defs><rect width='100%' height='100%' fill='%23050515'/><circle cx='140' cy='140' r='180' fill='url(%23g1)' opacity='0.85'/><circle cx='260' cy='260' r='160' fill='url(%23g2)' opacity='0.75'/></svg>";
-  });
+  // Generación de imagen incrustada por Canvas directo para asegurar carga por defecto
+  function loadDefaultNebula() {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 400;
+    tempCanvas.height = 400;
+    const tCtx = tempCanvas.getContext('2d');
+
+    // Recrear nebulosa cósmica con gradientes reales
+    const g1 = tCtx.createRadialGradient(120, 120, 10, 200, 200, 250);
+    g1.addColorStop(0, '#00ffff');
+    g1.addColorStop(0.3, '#ff007f');
+    g1.addColorStop(0.7, '#ffaa00');
+    g1.addColorStop(1, '#050515');
+
+    const g2 = tCtx.createRadialGradient(300, 300, 20, 250, 250, 200);
+    g2.addColorStop(0, '#ff0055');
+    g2.addColorStop(0.5, '#7700ff');
+    g2.addColorStop(1, '#000000');
+
+    tCtx.fillStyle = '#050515';
+    tCtx.fillRect(0, 0, 400, 400);
+
+    tCtx.fillStyle = g1;
+    tCtx.beginPath(); tCtx.arc(200, 200, 220, 0, Math.PI * 2); tCtx.fill();
+
+    tCtx.fillStyle = g2;
+    tCtx.globalCompositeOperation = 'screen';
+    tCtx.beginPath(); tCtx.arc(250, 250, 180, 0, Math.PI * 2); tCtx.fill();
+
+    // Estrellas
+    tCtx.globalCompositeOperation = 'source-over';
+    tCtx.fillStyle = '#ffffff';
+    for(let i=0; i<60; i++) {
+      const rx = Math.random() * 400;
+      const ry = Math.random() * 400;
+      const rw = Math.random() * 2 + 1;
+      tCtx.fillRect(rx, ry, rw, rw);
+    }
+
+    displayImage.src = tempCanvas.toDataURL('image/jpeg');
+  }
 
   displayImage.addEventListener('load', () => {
     const PROC_SIZE = 80;
@@ -118,7 +153,7 @@
     ctx.drawImage(displayImage, 0, 0, w, h);
     
     playBtn.disabled = false;
-    status.textContent = 'Nebulosa por defecto lista. Presiona "Iniciar Sonificación".';
+    status.textContent = 'Nebulosa cargada con éxito. Presiona "Iniciar Sonificación".';
   });
 
   function playTone(freq, volume) {
@@ -207,6 +242,9 @@
   }
 
   stopBtn.addEventListener('click', stopAudio);
+
+  // Inicializar carga por defecto
+  loadDefaultNebula();
 </script>
 
 </body>
