@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portafolio Pedro</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #ffffff;
+      color: #1a1a1a;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 40px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eeeeee;
+    }
+
+    header h1 {
+      font-size: 2.8rem;
+      color: #111111;
+    }
+
+    header p {
+      color: #666666;
+      font-size: 1.1rem;
+      margin-top: 8px;
+    }
+
+    /* Grilla de Ventanas/Proyectos */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 30px;
+      margin-bottom: 50px;
+    }
+
+    .project-card {
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .project-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Enlace con imagen interactiva para el usuario */
+    .project-link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .project-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      display: block;
+      border-bottom: 1px solid #eeeeee;
+    }
+
+    .project-info {
+      padding: 20px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .project-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #111111;
+    }
+
+    .project-description {
+      font-size: 0.95rem;
+      color: #555555;
+      margin-bottom: 15px;
+    }
+
+    .open-btn {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      padding: 10px 0;
+      background-color: #000000;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    .open-btn:hover {
+      background-color: #333333;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #e53935;
+      font-size: 0.8rem;
+      margin-top: 10px;
+      cursor: pointer;
+      text-align: right;
+    }
+
+    /* Panel exclusivo para que tú agregues proyectos */
+    .admin-panel {
+      background-color: #f9f9f9;
+      border: 1px dashed #cccccc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 40px;
+    }
+
+    .admin-panel h2 {
+      font-size: 1.1rem;
+      margin-bottom: 15px;
+      color: #333333;
+    }
+
+    .admin-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .admin-form input, .admin-form textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cccccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+
+    .add-btn {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .add-btn:hover {
+      background-color: #0052a3;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Portafolio Pedro</h1>
+    <p>Mis Proyectos Activos</p>
+  </header>
+
+  <!-- Ventanas de Proyectos Activos -->
+  <main class="projects-grid" id="projectsContainer">
+    <!-- Se cargan automáticamente con JavaScript -->
+  </main>
+
+  <!-- Opción exclusiva para que tú agregues enlaces de proyectos -->
+  <section class="admin-panel">
+    <h2>➕ Agregar Nuevo Proyecto (Solo Pedro)</h2>
+    <form class="admin-form" id="addProjectForm">
+      <input type="text" id="title" placeholder="Nombre del proyecto" required>
+      <textarea id="description" rows="2" placeholder="Descripción corta del proyecto"></textarea>
+      <input type="url" id="imageUrl" placeholder="URL de la imagen del proyecto" required>
+      <input type="url" id="projectUrl" placeholder="Link del proyecto activo (https://...)" required>
+      <button type="submit" class="add-btn">Publicar Proyecto</button>
+    </form>
+  </section>
+
+  <script>
+    // Lista inicial de proyectos de ejemplo
+    let projects = JSON.parse(localStorage.getItem('pedro_projects')) || [
+      {
+        title: "Proyecto Ejemplo 1",
+        description: "Haz clic en la imagen o el botón para abrir este proyecto.",
+        imageUrl: "https://via.placeholder.com/600x400?text=Vista+Previa+Proyecto",
+        projectUrl: "https://github.com"
+      }
+    ];
+
+    const container = document.getElementById('projectsContainer');
+    const form = document.getElementById('addProjectForm');
+
+    // Renderizar tarjetas/ventanas en pantalla
+    function renderProjects() {
+      container.innerHTML = '';
+
+      projects.forEach((proj, index) => {
+        const card = document.createElement('div');
+        card.className = 'project-card';
+        card.innerHTML = `
+          <!-- El usuario hace clic en la imagen para abrir el link -->
+          <a href="${proj.projectUrl}" target="_blank" rel="noopener noreferrer" class="project-link">
+            <img src="${proj.imageUrl}" alt="${proj.title}" class="project-image" onerror="this.src='https://via.placeholder.com/600x400?text=Imagen+No+Disponible'">
+          </a>
+          <div class="project-info">
+            <div>
+              <h3 class="project-title">${proj.title}</h3>
+              <p class="project-description">${proj.description}</p>
+            </div>
+            <div>
+              <!-- El usuario también tiene el botón opcional para abrir -->
+              <a href="${proj.projectUrl}" target="_blank" rel="noopener noreferrer" class="open-btn">Abrir Proyecto ↗</a>
+              <button class="delete-btn" onclick="deleteProject(${index})">Eliminar proyecto</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // Guardar nuevo proyecto (Tu opción de agregar links)
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const newProj = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        imageUrl: document.getElementById('imageUrl').value,
+        projectUrl: document.getElementById('projectUrl').value
+      };
+
+      projects.push(newProj);
+      localStorage.setItem('pedro_projects', JSON.stringify(projects));
+      renderProjects();
+      form.reset();
+    });
+
+    // Función para borrar proyectos guardados
+    window.deleteProject = function(index) {
+      projects.splice(index, 1);
+      localStorage.setItem('pedro_projects', JSON.stringify(projects));
+      renderProjects();
+    };
+
+    renderProjects();
+  </script>
+</body>
+</html>
