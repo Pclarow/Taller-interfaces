@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonificador de Imagen HD</title>
+  <title>Sonificador de Imagen HD - Nebulosa</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; background: #121212; color: #fff; }
     .container { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
@@ -25,7 +25,7 @@
       max-width: 100%;
       max-height: 500px;
       object-fit: contain;
-      display: none;
+      display: block;
     }
     
     /* Canvas procesador (OCULTO) */
@@ -34,33 +34,31 @@
     .controls { display: flex; gap: 10px; }
     button { padding: 12px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
     button:disabled { background: #444; cursor: not-allowed; }
-    input[type="file"] { background: #222; padding: 10px; border-radius: 4px; color: #fff; border: 1px solid #333; }
     #status { font-family: monospace; background: #1a1a1a; padding: 12px; border-radius: 4px; border: 1px solid #333; color: #00ffcc; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Sonificador RGB (Calidad HD)</h2>
-  <input type="file" id="imageInput" accept="image/*">
+  <h2>Sonificador RGB: Proyecto Nebulosa</h2>
   
   <div class="image-preview-container">
-    <img id="displayImage" alt="Previsualización de imagen">
+    <!-- Carga directa de tu imagen local en alta resolución -->
+    <img id="displayImage" src="nebulosa.jpg" alt="Imagen Nebulosa">
   </div>
   
-  <!-- Canvas invisible para procesamiento masivo -->
+  <!-- Canvas invisible para procesamiento en segundo plano -->
   <canvas id="hiddenCanvas"></canvas>
 
   <div class="controls">
-    <button id="playBtn" disabled>Iniciar Sonificación</button>
+    <button id="playBtn">Iniciar Sonificación</button>
     <button id="stopBtn" disabled>Detener</button>
   </div>
   
-  <div id="status">Selecciona una imagen para comenzar.</div>
+  <div id="status">Cargando imagen de la nebulosa...</div>
 </div>
 
 <script>
-  const imageInput = document.getElementById('imageInput');
   const displayImage = document.getElementById('displayImage');
   const hiddenCanvas = document.getElementById('hiddenCanvas');
   const ctx = hiddenCanvas.getContext('2d');
@@ -85,40 +83,36 @@
     "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
   ];
 
-  imageInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // Función para procesar la imagen al cargarla
+  function processImage() {
+    const PROC_SIZE = 80;
+    let w = displayImage.naturalWidth || displayImage.width;
+    let h = displayImage.naturalHeight || displayImage.height;
+    
+    if (w > h) {
+      h = Math.round((h * PROC_SIZE) / w);
+      w = PROC_SIZE;
+    } else {
+      w = Math.round((w * PROC_SIZE) / h);
+      h = PROC_SIZE;
+    }
 
-    const img = new Image();
-    img.onload = () => {
-      // 1. Mostrar la imagen ORIGINAL sin modificar para nitidez HD completa
-      displayImage.src = img.src;
-      displayImage.style.display = 'block';
+    hiddenCanvas.width = w;
+    hiddenCanvas.height = h;
+    ctx.drawImage(displayImage, 0, 0, w, h);
+    
+    playBtn.disabled = false;
+    status.textContent = 'Imagen de la nebulosa lista. Presiona "Iniciar Sonificación".';
+  }
 
-      // 2. Escalar internamente el canvas oculto a 80px para lecturas de audio ágiles
-      const PROC_SIZE = 80;
-      let w = img.width;
-      let h = img.height;
-      
-      if (w > h) {
-        h = Math.round((h * PROC_SIZE) / w);
-        w = PROC_SIZE;
-      } else {
-        w = Math.round((w * PROC_SIZE) / h);
-        h = PROC_SIZE;
-      }
+  // Detecta si la imagen ya cargó o espera al evento load
+  if (displayImage.complete) {
+    processImage();
+  } else {
+    displayImage.addEventListener('load', processImage);
+  }
 
-      hiddenCanvas.width = w;
-      hiddenCanvas.height = h;
-      ctx.drawImage(img, 0, 0, w, h);
-      
-      playBtn.disabled = false;
-      status.textContent = 'Imagen cargada en HD. Lista para sonificar.';
-    };
-    img.src = URL.createObjectURL(file);
-  });
-
-  // Generador sintetizado mediante Web Audio API puro
+  // Generador de tono puro mediante Web Audio API
   function playTone(freq, volume) {
     if (!audioCtx) return;
     
@@ -161,16 +155,16 @@
       if (!isPlaying) return;
 
       const idx = (y * w + x) * 4;
-      const r = imgData[idx];     // R -> Frecuencia / Nota
-      const g = imgData[idx + 1]; // G -> Volumen
-      const b = imgData[idx + 2]; // B -> (Disponible)
+      const r = imgData[idx];     // Rojo -> Frecuencia / Nota
+      const g = imgData[idx + 1]; // Verde -> Volumen
+      const b = imgData[idx + 2]; // Azul -> (Canal B)
 
-      // R mapeado a escala Do-Si
+      // Mapeo Rojo a notas (Do-Si)
       const noteIdx = Math.floor((r / 255) * (freqScale.length - 1));
       const freq = freqScale[noteIdx];
       const noteName = noteNames[noteIdx];
 
-      // G mapeado a volumen
+      // Mapeo Verde a volumen
       const volume = (g / 255) * 0.3;
 
       if (volume > 0.005) {
@@ -187,9 +181,9 @@
 
       if (y >= h) {
         stopAudio();
-        status.textContent = 'Sonificación finalizada.';
+        status.textContent = 'Sonificación de la nebulosa finalizada.';
       }
-    }, 80); // Velocidad óptima de reproducción (80ms por nota)
+    }, 80);
   });
 
   function stopAudio() {
