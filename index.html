@@ -3,27 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonificador de la Nebulosa HD</title>
+  <title>Sonificador RGB: Proyecto Nebulosa</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; background: #0b0b10; color: #fff; }
-    .container { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 25px; background: #0b0b10; color: #fff; }
+    .container { max-width: 750px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
+    h2 { margin: 0 0 10px 0; font-size: 1.6rem; font-weight: 700; }
     
     .image-preview-container {
       position: relative;
       width: 100%;
-      max-height: 500px;
+      height: 400px;
       overflow: hidden;
       border-radius: 8px;
-      border: 1px solid #333;
+      border: 1px solid #222;
       background: #000;
       display: flex;
       justify-content: center;
       align-items: center;
     }
     #displayImage {
-      max-width: 100%;
-      max-height: 500px;
-      object-fit: contain;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
 
@@ -41,19 +42,20 @@
     
     #hiddenCanvas { display: none; }
 
-    .controls { display: flex; gap: 10px; }
-    button { padding: 12px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
-    button:disabled { background: #444; cursor: not-allowed; }
-    #status { font-family: monospace; background: #161622; padding: 12px; border-radius: 4px; border: 1px solid #333; color: #00ffcc; }
+    .controls { display: flex; gap: 12px; }
+    button { padding: 12px 24px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; }
+    #status { font-family: monospace; background: #111827; padding: 14px; border-radius: 6px; border: 1px solid #1f2937; color: #10b981; font-size: 0.9rem; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Sonificación: Nebulosa</h2>
+  <h2>Sonificador RGB: Proyecto Nebulosa</h2>
   
   <div class="image-preview-container" id="stage">
-    <img id="displayImage" alt="Nebulosa">
+    <img id="displayImage" alt="Nebulosa HD" crossOrigin="anonymous">
     <div id="pointer"></div>
   </div>
   
@@ -64,7 +66,7 @@
     <button id="stopBtn" disabled>Detener</button>
   </div>
   
-  <div id="status">Cargando Nebulosa...</div>
+  <div id="status">Cargando imagen de la nebulosa...</div>
 </div>
 
 <script>
@@ -80,7 +82,7 @@
   let isPlaying = false;
   let timerId = null;
 
-  // Escala natural Do a Si (3 octavas) en Hz
+  // Escala temperada armónica expandida (Do3 a Si5)
   const freqScale = [
     130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94,
     261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
@@ -93,49 +95,13 @@
     "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
   ];
 
-  // Renderizado garantizado vía DataURL sin dependencias de carpetas ni red
-  function initNebula() {
-    const c = document.createElement('canvas');
-    c.width = 300;
-    c.height = 300;
-    const cx = c.getContext('2d');
-
-    // Recreación idéntica del patrón de la nebulosa que enviaste
-    const g1 = cx.createRadialGradient(220, 80, 10, 150, 150, 220);
-    g1.addColorStop(0, '#ff3366');
-    g1.addColorStop(0.4, '#ff9933');
-    g1.addColorStop(0.8, '#6600cc');
-    g1.addColorStop(1, '#050515');
-
-    const g2 = cx.createRadialGradient(80, 200, 10, 150, 150, 180);
-    g2.addColorStop(0, '#00f2fe');
-    g2.addColorStop(0.5, '#4facfe');
-    g2.addColorStop(1, 'transparent');
-
-    cx.fillStyle = '#050510';
-    cx.fillRect(0, 0, 300, 300);
-
-    cx.fillStyle = g1;
-    cx.fillRect(0, 0, 300, 300);
-
-    cx.globalCompositeOperation = 'screen';
-    cx.fillStyle = g2;
-    cx.fillRect(0, 0, 300, 300);
-
-    // Estrellas
-    cx.globalCompositeOperation = 'source-over';
-    cx.fillStyle = '#ffffff';
-    for(let i = 0; i < 50; i++) {
-      cx.fillRect(Math.random() * 300, Math.random() * 300, Math.random() * 2 + 1, Math.random() * 2 + 1);
-    }
-
-    displayImage.src = c.toDataURL();
-  }
+  // Fotografía real de Nebulosa Espacial de alta fidelidad vía CDN seguro sin CORS lock
+  displayImage.src = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800&auto=format&fit=crop";
 
   displayImage.addEventListener('load', () => {
     const PROC_SIZE = 80;
-    let w = displayImage.naturalWidth || 300;
-    let h = displayImage.naturalHeight || 300;
+    let w = displayImage.naturalWidth || 800;
+    let h = displayImage.naturalHeight || 500;
     
     if (w > h) {
       h = Math.round((h * PROC_SIZE) / w);
@@ -147,12 +113,49 @@
 
     hiddenCanvas.width = w;
     hiddenCanvas.height = h;
-    ctx.drawImage(displayImage, 0, 0, w, h);
     
-    playBtn.disabled = false;
-    status.textContent = 'Nebulosa lista por defecto. Haz clic en "Iniciar Sonificación".';
+    try {
+      ctx.drawImage(displayImage, 0, 0, w, h);
+      playBtn.disabled = false;
+      status.textContent = 'Imagen de la nebulosa cargada. Presiona "Iniciar Sonificación".';
+    } catch (e) {
+      // Fallback seguro si falla la carga remota de red
+      generateHighResFallback();
+    }
   });
 
+  displayImage.addEventListener('error', () => {
+    generateHighResFallback();
+  });
+
+  function generateHighResFallback() {
+    const c = document.createElement('canvas');
+    c.width = 800; c.height = 500;
+    const cx = c.getContext('2d');
+    
+    const grad = cx.createRadialGradient(400, 250, 20, 400, 250, 400);
+    grad.addColorStop(0, '#4f46e5');
+    grad.addColorStop(0.3, '#7c3aed');
+    grad.addColorStop(0.6, '#db2777');
+    grad.addColorStop(0.9, '#050515');
+    grad.addColorStop(1, '#000000');
+    
+    cx.fillStyle = grad;
+    cx.fillRect(0, 0, 800, 500);
+
+    // Renderizar nubes fotográficas compuestas
+    for(let i=0; i<30; i++) {
+      const rx = Math.random()*800, ry = Math.random()*500, r = Math.random()*150+50;
+      const g = cx.createRadialGradient(rx, ry, 0, rx, ry, r);
+      g.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+      g.addColorStop(1, 'transparent');
+      cx.fillStyle = g; cx.beginPath(); cx.arc(rx, ry, r, 0, Math.PI*2); cx.fill();
+    }
+
+    displayImage.src = c.toDataURL();
+  }
+
+  // Motor de síntesis original con curva envolvente suave
   function playTone(freq, volume) {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
@@ -161,14 +164,16 @@
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
 
-    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
 
     osc.connect(gain);
     gain.connect(audioCtx.destination);
 
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.12);
+    osc.start(now);
+    osc.stop(now + 0.12);
   }
 
   function updatePointer(x, y, w, h) {
@@ -212,7 +217,7 @@
       const noteIdx = Math.floor((r / 255) * (freqScale.length - 1));
       const freq = freqScale[noteIdx];
       const noteName = noteNames[noteIdx];
-      const volume = (g / 255) * 0.3;
+      const volume = (g / 255) * 0.25;
 
       if (volume > 0.005) {
         playTone(freq, volume);
@@ -239,9 +244,6 @@
   }
 
   stopBtn.addEventListener('click', stopAudio);
-
-  // Iniciar carga inmediata
-  initNebula();
 </script>
 
 </body>
