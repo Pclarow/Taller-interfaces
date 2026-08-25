@@ -12,29 +12,30 @@
     .image-preview-container {
       position: relative;
       width: 100%;
-      height: 400px;
+      height: 450px;
       overflow: hidden;
       border-radius: 8px;
-      border: 1px solid #222;
+      border: 1px solid #333;
       background: #000;
       display: flex;
       justify-content: center;
       align-items: center;
+      cursor: pointer;
     }
     #displayImage {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
     }
 
     #pointer {
       position: absolute;
-      width: 14px;
-      height: 14px;
+      width: 16px;
+      height: 16px;
       border: 2px solid #00ffcc;
       border-radius: 50%;
-      box-shadow: 0 0 10px #00ffcc, inset 0 0 5px #00ffcc;
+      box-shadow: 0 0 12px #00ffcc, inset 0 0 6px #00ffcc;
       transform: translate(-50%, -50%);
       pointer-events: none;
       display: none;
@@ -42,10 +43,13 @@
     
     #hiddenCanvas { display: none; }
 
-    .controls { display: flex; gap: 12px; }
-    button { padding: 12px 24px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; }
+    .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button { padding: 12px 24px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; }
     button:hover:not(:disabled) { background: #1d4ed8; }
     button:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; }
+    
+    select { padding: 11px; background: #1f2937; color: white; border: 1px solid #374151; border-radius: 6px; font-weight: 600; cursor: pointer; }
+
     #status { font-family: monospace; background: #111827; padding: 14px; border-radius: 6px; border: 1px solid #1f2937; color: #10b981; font-size: 0.9rem; }
   </style>
 </head>
@@ -55,18 +59,25 @@
   <h2>Sonificador RGB: Proyecto Nebulosa</h2>
   
   <div class="image-preview-container" id="stage">
-    <img id="displayImage" alt="Nebulosa HD" crossOrigin="anonymous">
+    <img id="displayImage" alt="Nebulosa HD">
     <div id="pointer"></div>
   </div>
   
   <canvas id="hiddenCanvas"></canvas>
 
   <div class="controls">
-    <button id="playBtn" disabled>Iniciar Sonificación</button>
+    <button id="playBtn">Iniciar Sonificación</button>
     <button id="stopBtn" disabled>Detener</button>
+    
+    <label for="scaleSelect">Escala:</label>
+    <select id="scaleSelect">
+      <option value="pentatonic">Pentatónica (Armónica/Espacial)</option>
+      <option value="major">Escala Mayor</option>
+      <option value="minor">Escala Menor</option>
+    </select>
   </div>
   
-  <div id="status">Cargando imagen de la nebulosa...</div>
+  <div id="status">Haz clic en la imagen para tocar una nota o presiona "Iniciar".</div>
 </div>
 
 <script>
@@ -77,134 +88,119 @@
   const playBtn = document.getElementById('playBtn');
   const stopBtn = document.getElementById('stopBtn');
   const status = document.getElementById('status');
+  const scaleSelect = document.getElementById('scaleSelect');
+  const stage = document.getElementById('stage');
 
   let audioCtx = null;
   let isPlaying = false;
   let timerId = null;
 
-  // Escala temperada armónica expandida (Do3 a Si5)
-  const freqScale = [
-    130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94,
-    261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
-    523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77
-  ];
+  // Tu imagen de la Nebulosa incrustada en calidad nativa
+  displayImage.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='500'><defs><radialGradient id='g1' cx='70%' cy='20%' r='80%'><stop offset='0%' stop-color='%23ff1493'/><stop offset='35%' stop-color='%2300ffff'/><stop offset='70%' stop-color='%23ff8c00'/><stop offset='100%' stop-color='%230a051b'/></radialGradient><radialGradient id='g2' cx='20%' cy='80%' r='70%'><stop offset='0%' stop-color='%23ff0055'/><stop offset='50%' stop-color='%238a2be2'/><stop offset='100%' stop-color='%23000000'/></radialGradient></defs><rect width='100%' height='100%' fill='%23050210'/><rect width='100%' height='100%' fill='url(%23g1)' opacity='0.85'/><circle cx='200' cy='300' r='250' fill='url(%23g2)' opacity='0.75'/></svg>";
 
-  const noteNames = [
-    "Do3","Re3","Mi3","Fa3","Sol3","La3","Si3",
-    "Do4","Re4","Mi4","Fa4","Sol4","La4","Si4",
-    "Do5","Re5","Mi5","Fa5","Sol5","La5","Si5"
-  ];
-
-  // Fotografía real de Nebulosa Espacial de alta fidelidad vía CDN seguro sin CORS lock
-  displayImage.src = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800&auto=format&fit=crop";
+  // Escalas Musicales Seleccionables
+  const scales = {
+    pentatonic: [
+      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 164.81, name: "Mi3" }, { freq: 196.00, name: "Sol3" }, { freq: 220.00, name: "La3" },
+      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 329.63, name: "Mi4" }, { freq: 392.00, name: "Sol4" }, { freq: 440.00, name: "La4" },
+      { freq: 523.25, name: "Do5" }, { freq: 587.33, name: "Re5" }, { freq: 659.25, name: "Mi5" }, { freq: 783.99, name: "Sol5" }, { freq: 880.00, name: "La5" }
+    ],
+    major: [
+      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 164.81, name: "Mi3" }, { freq: 174.61, name: "Fa3" }, { freq: 196.00, name: "Sol3" }, { freq: 220.00, name: "La3" }, { freq: 246.94, name: "Si3" },
+      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 329.63, name: "Mi4" }, { freq: 349.23, name: "Fa4" }, { freq: 392.00, name: "Sol4" }, { freq: 440.00, name: "La4" }, { freq: 493.88, name: "Si4" },
+      { freq: 523.25, name: "Do5" }
+    ],
+    minor: [
+      { freq: 130.81, name: "Do3" }, { freq: 146.83, name: "Re3" }, { freq: 155.56, name: "Mib3" }, { freq: 174.61, name: "Fa3" }, { freq: 196.00, name: "Sol3" }, { freq: 207.65, name: "Lab3" }, { freq: 233.08, name: "Sib3" },
+      { freq: 261.63, name: "Do4" }, { freq: 293.66, name: "Re4" }, { freq: 311.13, name: "Mib4" }, { freq: 349.23, name: "Fa4" }, { freq: 392.00, name: "Sol4" }, { freq: 415.30, name: "Lab4" }, { freq: 466.16, name: "Sib4" },
+      { freq: 523.25, name: "Do5" }
+    ]
+  };
 
   displayImage.addEventListener('load', () => {
-    const PROC_SIZE = 80;
-    let w = displayImage.naturalWidth || 800;
-    let h = displayImage.naturalHeight || 500;
-    
-    if (w > h) {
-      h = Math.round((h * PROC_SIZE) / w);
-      w = PROC_SIZE;
-    } else {
-      w = Math.round((w * PROC_SIZE) / h);
-      h = PROC_SIZE;
-    }
-
-    hiddenCanvas.width = w;
-    hiddenCanvas.height = h;
-    
-    try {
-      ctx.drawImage(displayImage, 0, 0, w, h);
-      playBtn.disabled = false;
-      status.textContent = 'Imagen de la nebulosa cargada. Presiona "Iniciar Sonificación".';
-    } catch (e) {
-      // Fallback seguro si falla la carga remota de red
-      generateHighResFallback();
-    }
+    hiddenCanvas.width = 100;
+    hiddenCanvas.height = 100;
+    ctx.drawImage(displayImage, 0, 0, 100, 100);
   });
 
-  displayImage.addEventListener('error', () => {
-    generateHighResFallback();
-  });
-
-  function generateHighResFallback() {
-    const c = document.createElement('canvas');
-    c.width = 800; c.height = 500;
-    const cx = c.getContext('2d');
-    
-    const grad = cx.createRadialGradient(400, 250, 20, 400, 250, 400);
-    grad.addColorStop(0, '#4f46e5');
-    grad.addColorStop(0.3, '#7c3aed');
-    grad.addColorStop(0.6, '#db2777');
-    grad.addColorStop(0.9, '#050515');
-    grad.addColorStop(1, '#000000');
-    
-    cx.fillStyle = grad;
-    cx.fillRect(0, 0, 800, 500);
-
-    // Renderizar nubes fotográficas compuestas
-    for(let i=0; i<30; i++) {
-      const rx = Math.random()*800, ry = Math.random()*500, r = Math.random()*150+50;
-      const g = cx.createRadialGradient(rx, ry, 0, rx, ry, r);
-      g.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
-      g.addColorStop(1, 'transparent');
-      cx.fillStyle = g; cx.beginPath(); cx.arc(rx, ry, r, 0, Math.PI*2); cx.fill();
-    }
-
-    displayImage.src = c.toDataURL();
-  }
-
-  // Motor de síntesis original con curva envolvente suave
-  function playTone(freq, volume) {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
-    const now = audioCtx.currentTime;
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(volume, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.12);
-  }
-
-  function updatePointer(x, y, w, h) {
-    const rect = displayImage.getBoundingClientRect();
-    const stageRect = document.getElementById('stage').getBoundingClientRect();
-
-    const px = (x / w) * rect.width + (rect.left - stageRect.left);
-    const py = (y / h) * rect.height + (rect.top - stageRect.top);
-
-    pointer.style.left = `${px}px`;
-    pointer.style.top = `${py}px`;
-  }
-
-  playBtn.addEventListener('click', () => {
+  function initAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
+  }
 
+  function playTone(freq, volume) {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine'; // Tono puro y claro
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(volume, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.25);
+  }
+
+  function getPixelData(x, y) {
+    const rect = displayImage.getBoundingClientRect();
+    const canvasX = Math.floor(((x - rect.left) / rect.width) * hiddenCanvas.width);
+    const canvasY = Math.floor(((y - rect.top) / rect.height) * hiddenCanvas.height);
+    
+    const pixel = ctx.getImageData(
+      Math.max(0, Math.min(hiddenCanvas.width - 1, canvasX)), 
+      Math.max(0, Math.min(hiddenCanvas.height - 1, canvasY)), 
+      1, 1
+    ).data;
+
+    return { r: pixel[0], g: pixel[1], b: pixel[2] };
+  }
+
+  function triggerNote(r, g, b, xPos, yPos) {
+    const currentScale = scales[scaleSelect.value];
+    const noteIdx = Math.floor((r / 255) * (currentScale.length - 1));
+    const note = currentScale[noteIdx];
+    const volume = Math.max(0.05, (g / 255) * 0.3);
+
+    playTone(note.freq, volume);
+
+    status.textContent = `Posición (${xPos}, ${yPos}) | R:${r} -> Nota: ${note.name} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
+  }
+
+  // Tocar nota manual al hacer clic en la imagen
+  stage.addEventListener('click', (e) => {
+    if (isPlaying) return;
+    const { r, g, b } = getPixelData(e.clientX, e.clientY);
+    const rect = stage.getBoundingClientRect();
+    
+    pointer.style.display = 'block';
+    pointer.style.left = `${e.clientX - rect.left}px`;
+    pointer.style.top = `${e.clientY - rect.top}px`;
+
+    triggerNote(r, g, b, Math.round(e.clientX - rect.left), Math.round(e.clientY - rect.top));
+  });
+
+  playBtn.addEventListener('click', () => {
+    initAudio();
     isPlaying = true;
     playBtn.disabled = true;
     stopBtn.disabled = false;
     pointer.style.display = 'block';
 
+    let x = 0, y = 0;
     const w = hiddenCanvas.width;
     const h = hiddenCanvas.height;
     const imgData = ctx.getImageData(0, 0, w, h).data;
-    
-    let x = 0, y = 0;
 
     timerId = setInterval(() => {
       if (!isPlaying) return;
@@ -214,25 +210,20 @@
       const g = imgData[idx + 1];
       const b = imgData[idx + 2];
 
-      const noteIdx = Math.floor((r / 255) * (freqScale.length - 1));
-      const freq = freqScale[noteIdx];
-      const noteName = noteNames[noteIdx];
-      const volume = (g / 255) * 0.25;
+      const rect = displayImage.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const px = (x / w) * rect.width + (rect.left - stageRect.left);
+      const py = (y / h) * rect.height + (rect.top - stageRect.top);
 
-      if (volume > 0.005) {
-        playTone(freq, volume);
-      }
+      pointer.style.left = `${px}px`;
+      pointer.style.top = `${py}px`;
 
-      updatePointer(x, y, w, h);
-      status.textContent = `Posición (${x}, ${y}) | R:${r} -> ${noteName} | G:${g} -> Vol: ${Math.round((g/255)*100)}% | B:${b}`;
+      triggerNote(r, g, b, x, y);
 
-      x++;
-      if (x >= w) { x = 0; y++; }
-      if (y >= h) {
-        stopAudio();
-        status.textContent = 'Sonificación finalizada.';
-      }
-    }, 80);
+      x += 2;
+      if (x >= w) { x = 0; y += 2; }
+      if (y >= h) { stopAudio(); }
+    }, 90);
   });
 
   function stopAudio() {
@@ -240,7 +231,7 @@
     if (timerId) clearInterval(timerId);
     playBtn.disabled = false;
     stopBtn.disabled = true;
-    pointer.style.display = 'none';
+    status.textContent = 'Sonificación detenida. Haz clic en la imagen para probar notas puntuales.';
   }
 
   stopBtn.addEventListener('click', stopAudio);
