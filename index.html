@@ -3,165 +3,153 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonificación de Nebulosa</title>
+  <title>Entrega 4 - Sonificación de Imágenes | Taller de Interfaces</title>
   <style>
     body {
-      background-color: #0d0d11;
-      color: #ffffff;
-      font-family: system-ui, -apple-system, sans-serif;
+      background-color: #0b0b10;
+      color: #e0e0e8;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      min-height: 100vh;
       margin: 0;
       padding: 20px;
-      box-sizing: border-box;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
     }
 
     h1 {
-      margin-bottom: 8px;
-      font-weight: 500;
-      letter-spacing: 1px;
+      font-size: 1.8rem;
+      color: #ffffff;
+      margin-bottom: 6px;
     }
 
     p {
-      color: #a0a0b0;
-      margin-bottom: 20px;
+      color: #8a8aa0;
       font-size: 0.95rem;
+      margin: 0;
     }
 
-    .container {
+    .canvas-container {
       position: relative;
       max-width: 90vw;
-      max-height: 75vh;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      max-height: 70vh;
+      border: 1px solid #2a2a3a;
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
     }
 
-    /* Garantiza máxima fidelidad visual y evita reescalados que degraden la calidad */
+    /* Mantiene resolución nativa sin degradar pixelado */
     #imageCanvas {
       display: block;
       width: 100%;
       height: auto;
-      max-height: 75vh;
+      max-height: 70vh;
       object-fit: contain;
-      cursor: pointer;
+      cursor: crosshair;
       image-rendering: -webkit-optimize-contrast;
       image-rendering: crisp-edges;
     }
 
-    .status {
+    .info-panel {
       margin-top: 15px;
+      padding: 12px 20px;
+      background: #14141d;
+      border-radius: 6px;
+      border: 1px solid #232333;
       font-family: monospace;
-      font-size: 0.9rem;
-      color: #64ffda;
+      font-size: 0.85rem;
+      color: #00e676;
     }
   </style>
 </head>
 <body>
 
-  <h1>Sonificación de Nebulosa</h1>
-  <p>Pasa el cursor o haz clic en la imagen para reproducir la nota asignada.</p>
+  <header>
+    <h1>Sonificación de Imágenes: Nebulosa Espacial</h1>
+    <p>Taller de Interfaces UAI | Mapeo cromático a parámetros sonoros</p>
+  </header>
 
-  <div class="container">
+  <div class="canvas-container">
     <canvas id="imageCanvas"></canvas>
   </div>
 
-  <div class="status" id="statusText">Cargando imagen...</div>
+  <div class="info-panel" id="status">Haz clic o pasa el cursor sobre la imagen para activar la sonificación.</div>
 
   <script>
     const canvas = document.getElementById('imageCanvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const statusText = document.getElementById('statusText');
+    const statusEl = document.getElementById('status');
 
     let audioCtx = null;
     let img = new Image();
-    img.src = 'Nebulosa.webp'; // Asegúrate de que el archivo esté en la misma carpeta
+    img.src = 'img/Nebulosa.webp';
 
-    // Escala pentatónica para que cualquier píxel suene armónico como un piano
-    const pianoNotes = [
-      130.81, 146.83, 164.81, 196.00, 220.00, // C3 - A3
-      261.63, 293.66, 329.63, 392.00, 440.00, // C4 - A4
-      523.25, 587.33, 659.25, 783.99, 880.00, // C5 - A5
-      1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // C6 - A6
+    // Frecuencias de escala armónica (Pentatónica de Piano en varias octavas)
+    const pianoScale = [
+      130.81, 146.83, 164.81, 196.00, 220.00, // Octava 3
+      261.63, 293.66, 329.63, 392.00, 440.00, // Octava 4
+      523.25, 587.33, 659.25, 783.99, 880.00, // Octava 5
+      1046.50, 1174.66, 1318.51, 1567.98, 1760.00 // Octava 6
     ];
 
     img.onload = () => {
-      // Mantiene la calidad y dimensiones exactas de la imagen original
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       ctx.drawImage(img, 0, 0);
-      statusText.textContent = 'Mueve el cursor sobre la imagen para sonificar.';
     };
 
-    img.onerror = () => {
-      statusText.textContent = 'Error: Coloca la imagen Nebulosa.webp en el mismo directorio.';
-    };
-
-    // Inicializar AudioContext tras interacción del usuario
-    function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-    }
-
-    // Algoritmo de mapeo RGB -> Frecuencia, Volumen y Efecto (Tremolo)
-    function playToneFromRGB(r, g, b) {
-      if (!audioCtx) return;
-
+    function playAudioMapping(r, g, b) {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const now = audioCtx.currentTime;
 
-      // 1. Canal R (Rojo) -> Mapeo a nota/frecuencia de piano
-      const noteIndex = Math.floor((r / 255) * (pianoNotes.length - 1));
-      const frequency = pianoNotes[noteIndex];
+      // 1. Canal R -> Frecuencia de Nota (Piano)
+      const noteIdx = Math.floor((r / 255) * (pianoScale.length - 1));
+      const freq = pianoScale[noteIdx];
 
-      // 2. Canal G (Verde) -> Mapeo a volumen (0 a 0.5 para no saturar)
-      const volume = (g / 255) * 0.5;
+      // 2. Canal G -> Volumen (Amplitud)
+      const gainVal = (g / 255) * 0.4;
 
-      // 3. Canal B (Azul) -> Mapeo a efecto (Frecuencia de Trémolo / Modulación)
-      const effectSpeed = (b / 255) * 15; // De 0Hz a 15Hz
+      // 3. Canal B -> Efecto de Modulación (Trémolo LFO)
+      const fxRate = (b / 255) * 12; // 0 Hz a 12 Hz
 
-      if (volume <= 0.01) return; // Omitir píxeles casi negros
+      if (gainVal <= 0.01) return;
 
-      // Creación del sintetizador de piano (Oscilador + Armónicos)
+      // Generación Sonora
       const osc = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
+      const mainGain = audioCtx.createGain();
 
-      // Forma de onda tipo piano (Mezcla de corte de onda suave)
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(frequency, now);
+      osc.type = 'triangle'; // Simulación de tono cálido tipo piano
+      osc.frequency.setValueAtTime(freq, now);
 
-      // Efecto (Canal B): Modulación por trémolo mediante un LFO
+      // Efecto Trémolo (LFO)
       const lfo = audioCtx.createOscillator();
       const lfoGain = audioCtx.createGain();
-      lfo.frequency.setValueAtTime(effectSpeed, now);
-      lfoGain.gain.setValueAtTime(volume * 0.3, now); // Intensidad del efecto
+      lfo.frequency.setValueAtTime(fxRate, now);
+      lfoGain.gain.setValueAtTime(gainVal * 0.3, now);
       lfo.connect(lfoGain.gain);
 
-      // Envolvente de volumen tipo Piano (Attack rápido, Decay gradual)
-      gainNode.gain.setValueAtTime(0.001, now);
-      gainNode.gain.linearRampToValueAtTime(volume, now + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+      // Envolvente de volumen (Attack / Release)
+      mainGain.gain.setValueAtTime(0.001, now);
+      mainGain.gain.linearRampToValueAtTime(gainVal, now + 0.03);
+      mainGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.0);
 
-      // Conexiones de audio
-      osc.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
+      osc.connect(mainGain);
+      mainGain.connect(audioCtx.destination);
+
       lfo.start(now);
       osc.start(now);
+      osc.stop(now + 1.0);
+      lfo.stop(now + 1.0);
 
-      // Detener y limpiar nodos
-      osc.stop(now + 1.2);
-      lfo.stop(now + 1.2);
-
-      statusText.textContent = `RGB(${r}, ${g}, ${b}) | Freq: ${Math.round(frequency)}Hz | Vol: ${Math.round(volume * 100)}% | FX Rate: ${effectSpeed.toFixed(1)}Hz`;
+      statusEl.textContent = `RGB(${r},${g},${b}) => Frecuencia: ${Math.round(freq)}Hz | Volumen: ${Math.round(gainVal*100)}% | FX Trémolo: ${fxRate.toFixed(1)}Hz`;
     }
 
-    // Captura de coordenadas precisas
-    function handlePointer(e) {
-      initAudio();
-
+    function processPointer(e) {
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
@@ -170,21 +158,20 @@
       const y = Math.floor((e.clientY - rect.top) * scaleY);
 
       if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-        const pixelData = ctx.getImageData(x, y, 1, 1).data;
-        playToneFromRGB(pixelData[0], pixelData[1], pixelData[2]);
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        playAudioMapping(pixel[0], pixel[1], pixel[2]);
       }
     }
 
-    let lastExecution = 0;
+    let throttleTimer = 0;
     canvas.addEventListener('mousemove', (e) => {
-      // Throttle para limitar la generación de notas y evitar saturación de audio
-      if (Date.now() - lastExecution > 100) {
-        handlePointer(e);
-        lastExecution = Date.now();
+      if (Date.now() - throttleTimer > 90) {
+        processPointer(e);
+        throttleTimer = Date.now();
       }
     });
 
-    canvas.addEventListener('click', handlePointer);
+    canvas.addEventListener('click', processPointer);
   </script>
 </body>
 </html>
